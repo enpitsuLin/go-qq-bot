@@ -1,0 +1,57 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts
+bin/
+tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+build-errors.log
+
+# Test files and coverage
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Documentation
+*.md
+LICENSE
+CHANGELOG
+
+# CI/CD
+.github/
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment and config
+.env
+.env.*
+
+# Task and development tools
+.air.toml
+Taskfile.yml
+Makefile
+
+# Docker files
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Dependencies (will be downloaded in build)
+vendor/
+
+# Claude Code
+.claude/

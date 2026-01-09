@@ -4,12 +4,33 @@ vars:
   BINARY_NAME: go-qq-bot
   BUILD_DIR: ./bin
   MAIN_PATH: ./main.go
+  # Version info from git
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  BUILD_TIME:
+    sh: date -u '+%Y-%m-%d_%H:%M:%S'
+  # Build flags for optimization
+  LDFLAGS: >-
+    -s -w
+    -X main.Version={{.VERSION}}
+    -X main.Commit={{.COMMIT}}
+    -X main.BuildTime={{.BUILD_TIME}}
 
 tasks:
   default:
     desc: Show available tasks
     cmds:
       - task --list
+    silent: true
+
+  version:
+    desc: Show version information
+    cmds:
+      - echo "Version {{.VERSION}}"
+      - echo "Commit {{.COMMIT}}"
+      - echo "Build Time {{.BUILD_TIME}}"
     silent: true
 
   dev:
@@ -25,25 +46,40 @@ tasks:
     silent: false
 
   build:
-    desc: Build binary for current platform
+    desc: Build binary for current platform (development)
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
+      - go build -trimpath -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
+    silent: false
+
+  build:prod:
+    desc: Build optimized binary for current platform (production)
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
     silent: false
 
   build:all:
-    desc: Build binaries for multiple platforms
+    desc: Build optimized binaries for multiple platforms (production)
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - GOOS=linux GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PATH}}
-      - GOOS=darwin GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PATH}}
-      - GOOS=darwin GOARCH=arm64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PATH}}
-      - GOOS=windows GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-windows-amd64.exe {{.MAIN_PATH}}
+      - GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PATH}}
+      - GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PATH}}
+      - GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PATH}}
+      - GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PATH}}
+      - GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-windows-amd64.exe {{.MAIN_PATH}}
     silent: false
 
   run:
     desc: Run the built binary
     deps: [build]
+    cmds:
+      - '{{.BUILD_DIR}}/{{.BINARY_NAME}}'
+    silent: false
+
+  run:prod:
+    desc: Run the production binary
+    deps: [build:prod]
     cmds:
       - '{{.BUILD_DIR}}/{{.BINARY_NAME}}'
     silent: false
@@ -54,11 +90,23 @@ tasks:
       - go test -v ./...
     silent: false
 
+  test:race:
+    desc: Run tests with race detector
+    cmds:
+      - go test -race -v ./...
+    silent: false
+
   test:coverage:
     desc: Run tests with coverage report
     cmds:
       - go test -v -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
+    silent: false
+
+  bench:
+    desc: Run benchmarks
+    cmds:
+      - go test -bench=. -benchmem ./...
     silent: false
 
   lint:
@@ -85,11 +133,19 @@ tasks:
       - go mod tidy
     silent: false
 
+  verify:
+    desc: Verify go modules
+    cmds:
+      - go mod verify
+    silent: false
+
   clean:
     desc: Clean build artifacts
     cmds:
       - rm -rf {{.BUILD_DIR}}
+      - rm -rf tmp/
       - rm -f coverage.out coverage.html
+      - rm -f build-errors.log
     silent: false
 
   install:deps:
@@ -106,4 +162,13 @@ tasks:
       - task: vet
       - task: lint
       - task: test
+    silent: false
+
+  ci:
+    desc: Run CI pipeline (check, build, verify)
+    cmds:
+      - task: tidy
+      - task: verify
+      - task: check
+      - task: build:prod
     silent: false
